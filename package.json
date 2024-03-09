@@ -1,0 +1,29 @@
+{
+    "name": "@gramio/session",
+    "version": "0.0.1",
+    "description": "Session plugin for GramIO",
+    "main": "dist/index.js",
+    "type": "commonjs",
+    "homepage": "https://github.com/gramiojs/session",
+    "readme": "https://gramio.netlify.app/",
+    "scripts": {
+        "prepublishOnly": "bun test && tsc"
+    },
+    "keywords": [
+        "gramio"
+    ],
+    "devDependencies": {
+        "@types/bun": "^1.0.7",
+        "gramio": "^0.0.20",
+        "typescript": "^5.3.3"
+    },
+    "peerDependencies": {
+        "gramio": "^0.0.20"
+    },
+    "dependencies": {
+        "@gramio/types": "^7.1.0"
+    },
+    "files": [
+        "dist"
+    ]
+}
