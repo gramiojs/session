@@ -7,10 +7,16 @@
     "homepage": "https://github.com/gramiojs/session",
     "readme": "https://gramio.netlify.app/",
     "scripts": {
-        "prepublishOnly": "bun test && tsc"
+        "prepublishOnly": "tsc && bunx tsc-alias"
     },
     "keywords": [
-        "gramio"
+        "gramio",
+        "gramio-plugin",
+        "session",
+        "gramio-session",
+        "storage",
+        "redis",
+        "in-memory"
     ],
     "devDependencies": {
         "@types/bun": "^1.0.7",
