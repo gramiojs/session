@@ -12,7 +12,6 @@ interface SessionOptions<
 	Key extends string | undefined = "session",
 > {
 	key?: Key;
-	schema?: Data;
 	storage?: Storage;
 	getSessionKey?: (
 		context: ContextType<BotLike, "message">,
@@ -65,6 +64,7 @@ export function session<Data = unknown, Key extends string = "session">(
 			},
 			set(value) {
 				console.log("set", value);
+				// TODO: optimize it
 				storage.set(sessionKey, value);
 			},
 		});
