@@ -1,11 +1,10 @@
+import { type Storage, inMemoryStorage } from "@gramio/storage";
 import {
 	type BotLike,
 	type ContextType,
 	type MaybePromise,
 	Plugin,
 } from "gramio";
-import { inMemoryStorage } from "in-memory-storage";
-import type { Storage } from "types";
 
 interface SessionOptions<
 	Data = unknown,
@@ -19,14 +18,13 @@ interface SessionOptions<
 	initial?: (context: ContextType<BotLike, "message">) => MaybePromise<Data>;
 }
 
+// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 function createProxy(value: any, storage: Storage, sessionKey: string) {
 	return new Proxy(value, {
 		get(target, key) {
 			return target[key];
 		},
 		set(target, key, newValue) {
-			console.log("test", target, key, newValue);
-
 			target[key] = newValue;
 
 			storage.set(sessionKey, target);
@@ -59,11 +57,9 @@ export function session<Data = unknown, Key extends string = "session">(
 		Object.defineProperty(obj, key, {
 			enumerable: true,
 			get() {
-				console.log("get");
 				return createProxy(session, storage, sessionKey);
 			},
 			set(value) {
-				console.log("set", value);
 				// TODO: optimize it
 				storage.set(sessionKey, value);
 			},
