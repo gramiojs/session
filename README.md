@@ -2,7 +2,7 @@
 
 Session plugin for GramIO.
 
-**!!!Currently not optimized!!!**
+**!!!Currently not optimized and WIP!!!**
 
 ## Usage
 
@@ -24,6 +24,8 @@ const bot = new Bot(process.env.token!)
 
 bot.start();
 ```
+
+You can use this plugin with any storage ([Read more](https://gramio.netlify.app/storages/))
 
 ### Redis example
 
@@ -48,4 +50,22 @@ const bot = new Bot(process.env.token!)
     .onStart(console.log);
 
 bot.start();
+```
+
+### TypeScript
+
+To **type** a session data, you need to specify the type as the `ReturnType` of the initial function.
+
+```ts
+interface MySessionData {
+    apple: number;
+    some?: "maybe-empty";
+}
+
+bot.extend(
+    session({
+        key: "sessionKey",
+        initial: (): MySessionData => ({ apple: 1 }),
+    })
+);
 ```
