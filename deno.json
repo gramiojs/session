@@ -6,6 +6,7 @@
         "include": ["deno.json", "src", "README.md", "tsconfig.json"]
     },
     "imports": {
-        "@gramio/storage": "jsr:@gramio/storage@^0.0.3"
+        "@gramio/storage": "jsr:@gramio/storage@^0.0.3",
+        "@gramio/core": "jsr:@gramio/core@^0.0.31"
     }
 }
