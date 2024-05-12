@@ -1,3 +1,8 @@
+/**
+ * @module
+ *
+ * Session plugin for GramIO.
+ */
 import { type Storage, inMemoryStorage } from "@gramio/storage";
 import {
 	type BotLike,
@@ -38,7 +43,8 @@ type Events = [
 	"new_chat_members",
 ][number];
 
-interface SessionOptions<
+/** Options types from {@link session} plugin */
+export interface SessionOptions<
 	Data = unknown,
 	Key extends string | undefined = "session",
 > {
@@ -76,6 +82,28 @@ function createProxy<T>(
 	});
 }
 
+/**
+ * Session plugin
+ * @example
+ * ```ts
+ * import { Bot } from "gramio";
+ * import { session } from "@gramio/session";
+ * 
+ * const bot = new Bot(process.env.token!)
+ *     .extend(
+ *         session({
+ *             key: "sessionKey",
+ *             initial: () => ({ apple: 1 }),
+ *         })
+ *     )
+ *     .on("message", (context) => {
+ *         context.send(`🍏 apple count is ${++context.sessionKey.apple}`);
+ *     })
+ *     .onStart(console.log);
+ * 
+ * bot.start();
+```
+ */
 export function session<Data = unknown, Key extends string = "session">(
 	options: SessionOptions<Data, Key> = {},
 ) {
@@ -119,7 +147,9 @@ export function session<Data = unknown, Key extends string = "session">(
 			"new_chat_members",
 		],
 		async (context) => {
-			const obj = {} as { [key in typeof key]: Data };
+			const obj = {} as {
+				[key in typeof key]: Data;
+			};
 
 			const sessionKey = await getSessionKey(context);
 
