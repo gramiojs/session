@@ -44,5 +44,6 @@
 	"dependencies": {
 		"@gramio/storage": "^0.0.3"
 	},
-	"files": ["dist"]
+	"files": ["dist"],
+	"license": "MIT"
 }
