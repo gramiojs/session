@@ -29,7 +29,7 @@ const bot = new Bot(process.env.token!)
 bot.start();
 ```
 
-You can use this plugin with any storage ([Read more](https://gramio.netlify.app/storages/))
+You can use this plugin with any storage ([Read more](https://gramio.dev/storages/))
 
 ### Redis example
 

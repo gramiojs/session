@@ -56,7 +56,7 @@ export interface SessionOptions<
 	/**
 	 * The {@link Storage} in which to store the session
 	 *
-	 * [Documentation](https://gramio.netlify.app/storages/)
+	 * [Documentation](https://gramio.dev/storages/)
 	 */
 	storage?: Storage;
 	/**
