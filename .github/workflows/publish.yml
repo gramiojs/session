@@ -27,7 +27,7 @@ jobs:
               run: bun install
 
             - name: Prepare to JSR publish
-              run: bun jsr
+              run: bun scripts/prepare-jsr.ts
 
             - name: Type-check
               run: tsc --noEmit
