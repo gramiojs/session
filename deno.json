@@ -1,12 +1,12 @@
 {
-    "name": "@gramio/session",
-    "version": "0.0.9",
-    "exports": "./src/index.ts",
-    "publish": {
-        "include": ["deno.json", "src", "README.md", "tsconfig.json"]
-    },
-    "imports": {
-        "@gramio/storage": "jsr:@gramio/storage@^0.0.3",
-        "gramio": "jsr:@gramio/core@^0.0.32"
-    }
+	"name": "@gramio/session",
+	"version": "0.0.9",
+	"exports": "./src/index.ts",
+	"publish": {
+		"include": ["deno.json", "src", "README.md", "tsconfig.json"]
+	},
+	"imports": {
+		"@gramio/storage": "jsr:@gramio/storage@^0.0.3",
+		"gramio": "jsr:@gramio/core@^0.0.46"
+	}
 }
