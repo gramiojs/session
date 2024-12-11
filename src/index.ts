@@ -192,12 +192,13 @@ export function session<Data = unknown, Key extends string = "session">(
 				[key in typeof key]: Data;
 			};
 
-			// @ts-expect-error WE SHOULD ADD * TO GRAMIO/TYPES usage
+			// TODO: WE SHOULD ADD * TO GRAMIO/TYPES usage
+			// @ts-ignore 
 			const sessionKey = await getSessionKey(context);
 
 			const sessionData =
 				(await storage.get(sessionKey)) ??
-				// @ts-expect-error
+				// @ts-ignore
 				(options.initial && (await options.initial(context))) ??
 				{};
 			const onUpdate: () => unknown = () => storage.set(sessionKey, session);
