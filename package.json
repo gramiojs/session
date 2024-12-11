@@ -1,6 +1,6 @@
 {
 	"name": "@gramio/session",
-	"version": "0.1.5",
+	"version": "0.1.6",
 	"description": "Session plugin for GramIO",
 	"main": "dist/index.cjs",
 	"module": "dist/index.js",
@@ -33,16 +33,16 @@
 		"in-memory"
 	],
 	"devDependencies": {
-		"@types/bun": "^1.1.6",
-		"gramio": "^0.0.46",
-		"pkgroll": "2.4.0",
-		"typescript": "^5.5.4"
+		"@types/bun": "^1.1.14",
+		"gramio": "^0.1.5",
+		"pkgroll": "2.5.1",
+		"typescript": "^5.7.2"
 	},
 	"peerDependencies": {
 		"gramio": ">=0.0.39 <1.0.0"
 	},
 	"dependencies": {
-		"@gramio/storage": "^0.0.3"
+		"@gramio/storage": "^1.0.0"
 	},
 	"files": ["dist"],
 	"license": "MIT"
