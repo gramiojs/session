@@ -7,6 +7,7 @@ import { type Storage, inMemoryStorage } from "@gramio/storage";
 import {
 	type BotLike,
 	type ContextType,
+	DeriveDefinitions,
 	type MaybePromise,
 	Plugin,
 	isPlainObject,
@@ -41,7 +42,9 @@ type Events = [
 	"migrate_from_chat_id",
 	"migrate_to_chat_id",
 	"new_chat_members",
+	"chat_shared"
 ][number];
+
 
 /** Options types from {@link session} plugin */
 export interface SessionOptions<
@@ -140,85 +143,8 @@ export function session<Data = unknown, Key extends string = "session">(
 ): Plugin<
 	// biome-ignore lint/complexity/noBannedTypes: Temporally fix https://jsr.io/@gramio/session/0.1.2/src/index.ts#L109 slow-types-compiler issue
 	{},
-	import("gramio").DeriveDefinitions & {
-		message: Awaited<{ [key in Key extends string ? Key : "session"]: Data }>;
-		callback_query: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		channel_post: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		chat_join_request: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		chosen_inline_result: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		inline_query: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		web_app_data: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		successful_payment: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		video_chat_started: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		video_chat_ended: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		video_chat_scheduled: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		video_chat_participants_invited: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		passport_data: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		new_chat_title: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		new_chat_photo: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		pinned_message: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		poll_answer: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		pre_checkout_query: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		proximity_alert_triggered: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		shipping_query: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		group_chat_created: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		delete_chat_photo: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		location: Awaited<{ [key in Key extends string ? Key : "session"]: Data }>;
-		invoice: Awaited<{ [key in Key extends string ? Key : "session"]: Data }>;
-		message_auto_delete_timer_changed: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		migrate_from_chat_id: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		migrate_to_chat_id: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
-		new_chat_members: Awaited<{
-			[key in Key extends string ? Key : "session"]: Data;
-		}>;
+	DeriveDefinitions & {
+		[K in Events]: Awaited<{ [key in Key extends string ? Key : "session"]: Data }>
 	}
 > {
 	const key = (options.key ?? "session") as Key extends string
@@ -259,16 +185,19 @@ export function session<Data = unknown, Key extends string = "session">(
 			"migrate_from_chat_id",
 			"migrate_to_chat_id",
 			"new_chat_members",
+			"chat_shared"
 		],
 		async (context) => {
 			const obj = {} as {
 				[key in typeof key]: Data;
 			};
 
+			// @ts-expect-error WE SHOULD ADD * TO GRAMIO/TYPES usage
 			const sessionKey = await getSessionKey(context);
 
 			const sessionData =
 				(await storage.get(sessionKey)) ??
+				// @ts-expect-error
 				(options.initial && (await options.initial(context))) ??
 				{};
 			const onUpdate: () => unknown = () => storage.set(sessionKey, session);
