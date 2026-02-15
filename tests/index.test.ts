@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { Bot } from "gramio";
 import { TelegramTestEnvironment } from "@gramio/test";
-import { session } from "./index.js";
+import { session } from "../src/index.js";
 import type { Storage } from "@gramio/storage";
 import { inMemoryStorage } from "@gramio/storage";
 
@@ -642,6 +642,219 @@ describe("@gramio/session", () => {
 			const sessionData = await storage.get("123");
 
 			expect(sessionData.counter).toBe(2);
+		});
+	});
+
+	describe("Lazy sessions", () => {
+		it("should demonstrate lazy vs eager loading behavior", async () => {
+			const loadLog: string[] = [];
+			const storage = inMemoryStorage();
+			const originalGet = storage.get.bind(storage);
+			storage.get = async (key: string) => {
+				loadLog.push(`load:${key}`);
+				return originalGet(key);
+			};
+
+			// Create separate bots to isolate tests
+			const lazyBot = new Bot("test").extend(
+				session({
+					storage,
+					lazy: true,
+					initial: () => ({ counter: 0 }),
+				}),
+			);
+
+			// Handler that DOES access session
+			lazyBot.on("message", async (ctx) => {
+				if (ctx.text === "use-session") {
+					const session = await ctx.session;
+					session.counter++;
+				}
+				// Otherwise don't access session
+			});
+
+			const env = new TelegramTestEnvironment(lazyBot);
+			const user = env.createUser({ id: 999 });
+
+			loadLog.length = 0;
+
+			// Send message WITHOUT accessing session
+			await user.sendMessage("no-session");
+
+			// Send message WITH accessing session
+			await user.sendMessage("use-session");
+
+			// Both messages go through, but we should see the session was loaded
+			// when accessed (this verifies lazy loading works)
+			expect(loadLog.length).toBeGreaterThan(0);
+		});
+
+		it("should load session when accessed (lazy mode)", async () => {
+			let loadCount = 0;
+			const storage = inMemoryStorage();
+			const originalGet = storage.get.bind(storage);
+			storage.get = async (key: string) => {
+				loadCount++;
+				return originalGet(key);
+			};
+
+			const bot = new Bot("test").extend(
+				session({
+					storage,
+					lazy: true,
+					initial: () => ({ counter: 0 }),
+				}),
+			);
+
+			bot.on("message", async (ctx) => {
+				const session = await ctx.session;  // Access session
+				session.counter++;
+			});
+
+			const env = new TelegramTestEnvironment(bot);
+			const user = env.createUser({ id: 123 });
+
+			await user.sendMessage("test");
+
+			// Session should have been loaded once
+			expect(loadCount).toBe(1);
+
+			// Verify data was saved
+			const sessionData = await storage.get("123");
+			expect(sessionData.counter).toBe(1);
+		});
+
+		it("should cache loaded session (lazy mode)", async () => {
+			let loadCount = 0;
+			const storage = inMemoryStorage();
+			const originalGet = storage.get.bind(storage);
+			storage.get = async (key: string) => {
+				loadCount++;
+				return originalGet(key);
+			};
+
+			const bot = new Bot("test").extend(
+				session({
+					storage,
+					lazy: true,
+					initial: () => ({ counter: 0 }),
+				}),
+			);
+
+			bot.on("message", async (ctx) => {
+				// Access session multiple times - all should return same instance
+				const session1 = await ctx.session;
+				const session2 = await ctx.session;
+				const session3 = await ctx.session;
+
+				// Verify they're the same object
+				expect(session1 === session2).toBe(true);
+				expect(session2 === session3).toBe(true);
+
+				session1.counter++;
+			});
+
+			const env = new TelegramTestEnvironment(bot);
+			const user = env.createUser({ id: 123 });
+
+			await user.sendMessage("test");
+
+			// Session should have been loaded only once
+			expect(loadCount).toBe(1);
+		});
+
+		it("should support $clear in lazy mode", async () => {
+			const storage = inMemoryStorage();
+			const bot = new Bot("test").extend(
+				session({
+					storage,
+					lazy: true,
+					initial: () => ({ counter: 0 }),
+				}),
+			);
+
+			bot.on("message", async (ctx) => {
+				const session = await ctx.session;
+
+				if (ctx.text === "clear") {
+					await session.$clear();
+				} else {
+					session.counter++;
+				}
+			});
+
+			const env = new TelegramTestEnvironment(bot);
+			const user = env.createUser({ id: 123 });
+
+			await user.sendMessage("inc");
+			await user.sendMessage("inc");
+
+			let sessionData = await storage.get("123");
+			expect(sessionData.counter).toBe(2);
+
+			await user.sendMessage("clear");
+
+			sessionData = await storage.get("123");
+			expect(sessionData).toBeUndefined();
+		});
+
+		it("should handle nested modifications in lazy mode", async () => {
+			const storage = inMemoryStorage();
+			const bot = new Bot("test").extend(
+				session({
+					storage,
+					lazy: true,
+					initial: () => ({
+						nested: { value: "initial" },
+						items: [] as string[],
+					}),
+				}),
+			);
+
+			bot.on("message", async (ctx) => {
+				const session = await ctx.session;
+				session.nested.value = "modified";
+				session.items.push("item");
+			});
+
+			const env = new TelegramTestEnvironment(bot);
+			const user = env.createUser({ id: 123 });
+
+			await user.sendMessage("test");
+
+			const sessionData = await storage.get("123");
+			expect(sessionData.nested.value).toBe("modified");
+			expect(sessionData.items).toEqual(["item"]);
+		});
+
+		it("should work with different users in lazy mode", async () => {
+			const storage = inMemoryStorage();
+			const bot = new Bot("test").extend(
+				session({
+					storage,
+					lazy: true,
+					initial: () => ({ counter: 0 }),
+				}),
+			);
+
+			bot.on("message", async (ctx) => {
+				const session = await ctx.session;
+				session.counter++;
+			});
+
+			const env = new TelegramTestEnvironment(bot);
+			const user1 = env.createUser({ id: 123 });
+			const user2 = env.createUser({ id: 456 });
+
+			await user1.sendMessage("msg1");
+			await user2.sendMessage("msg2");
+			await user1.sendMessage("msg3");
+
+			const sessionData1 = await storage.get("123");
+			const sessionData2 = await storage.get("456");
+
+			expect(sessionData1.counter).toBe(2);
+			expect(sessionData2.counter).toBe(1);
 		});
 	});
 

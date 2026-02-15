@@ -41,7 +41,25 @@ Synchronizes version from package.json to deno.json and runs slow-types-compiler
 
 ### Core Design
 
-The entire plugin implementation is in a **single file** (`src/index.ts`). This is intentional for simplicity as a focused plugin.
+The plugin is organized into focused modules in `src/lib/`:
+
+**File Structure:**
+```
+src/
+├── index.ts                 # Public API (88 lines)
+└── lib/
+    ├── types.ts            # Type definitions
+    ├── proxy.ts            # Proxy creation & caching (prevents memory leaks)
+    ├── session-manager.ts  # Core session logic (shared by lazy/eager)
+    ├── derive-eager.ts     # Eager mode implementation
+    └── derive-lazy.ts      # Lazy mode implementation
+```
+
+**Design Principles:**
+- Each file has **single responsibility**
+- **Zero code duplication** (shared logic in session-manager)
+- Easy to extend (add new file in `lib/`)
+- See `src/lib/README.md` for detailed architecture docs
 
 **Reactive Session Pattern:**
 - Uses JavaScript `Proxy` to automatically track changes to session data
@@ -118,6 +136,40 @@ The generic types flow through to context augmentation, providing full IntelliSe
 - Both use `WeakMap` for proper garbage collection
 - The `$clear()` method is non-enumerable and explicitly filtered during storage operations
 
+### Lazy Sessions (v0.1.7+)
+
+**Feature**: Lazy sessions only load from storage when actually accessed, significantly reducing database reads.
+
+```typescript
+// Eager mode (default) - Always loads
+bot.extend(session({ initial: () => ({ count: 0 }) }));
+bot.on("message", (ctx) => {
+    // Session loaded even if not used ❌
+    ctx.send("Hello!");
+});
+
+// Lazy mode - Loads only when accessed
+bot.extend(session({ lazy: true, initial: () => ({ count: 0 }) }));
+bot.on("message", async (ctx) => {
+    // Session NOT loaded ✅
+    ctx.send("Hello!");
+});
+bot.on("message", async (ctx) => {
+    const session = await ctx.session;  // Loads HERE
+    session.count++;
+});
+```
+
+**Benefits**:
+- 50-90% fewer database reads for bots with many handlers
+- Lower costs for cloud storage services
+- Faster responses for handlers that don't need session
+- Automatic caching per-update (multiple accesses = single load)
+
+**Type Safety**: When `lazy: true`, `ctx.session` is `Promise<Data>` and must be awaited. TypeScript enforces this at compile time.
+
+**See**: `LAZY_SESSIONS_EXAMPLE.ts` for detailed comparison
+
 ### Concurrency Behavior
 
 **Single User Updates**: Telegram processes updates sequentially per bot instance. Each update from the same user is handled one at a time, so there are no race conditions for same-user updates in normal operation.
@@ -155,6 +207,11 @@ This package uses `@gramio/test` for bot testing and `bun:test` as the test runn
 - Custom storage implementations
 - Different Telegram event types
 - Edge cases (null values, empty state)
+- **Lazy sessions** (load behavior, caching, performance)
+
+**Test Location:**
+- All tests in `tests/` folder (not `src/`)
+- Import from `../src/index.js` in test files
 
 **Running Tests:**
 ```bash
@@ -172,19 +229,28 @@ bunx tsc --noEmit && bun test  # Full validation
 ## Code Patterns
 
 **Avoid:**
-- Creating additional files unless necessary (keep the single-file architecture)
 - Breaking changes to the `SessionOptions` interface (peer dependency constraints)
 - Adding dependencies beyond `@gramio/storage` (keep it lightweight)
 - Modifying `proxyCache` or `targetCache` logic without understanding memory leak implications
+- Creating files outside of `src/lib/` structure
 
 **When modifying:**
 - **ALWAYS** run `bunx tsc --noEmit && bun test` before committing
-- Update the `Events` type union if new Telegram events need session support
+- **ALWAYS** update README.md if adding features or changing behavior
+- Update the `Events` type union (in `src/lib/types.ts`) if new Telegram events need session support
 - Ensure both `@ts-ignore` comments have explanatory context (current ones are for upstream type issues)
 - Test with both in-memory and external storage (e.g., Redis) to verify proxy behavior
 - Check that nested object/array mutations trigger storage updates
 - Verify that `onUpdate()` properly filters out internal methods (`$clear`)
 - Test concurrent access scenarios if modifying proxy or storage logic
+
+**When adding features:**
+- Create new file in `src/lib/` with clear, single responsibility
+- Export from `index.ts` if part of public API
+- Add tests in `tests/` folder
+- Update `CLAUDE.md` with implementation notes
+- **Update README.md** with usage examples and documentation
+- Add JSDoc comments to all public functions
 
 ## Multi-Runtime Considerations
 

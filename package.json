@@ -1,6 +1,6 @@
 {
 	"name": "@gramio/session",
-	"version": "0.1.6",
+	"version": "0.2.0",
 	"description": "Session plugin for GramIO",
 	"main": "dist/index.cjs",
 	"module": "dist/index.js",
@@ -19,7 +19,7 @@
 	},
 	"type": "module",
 	"homepage": "https://github.com/gramiojs/session",
-	"readme": "https://gramio.dev/",
+	"readme": "https://gramio.dev/plugins/session",
 	"scripts": {
 		"prepublishOnly": "bunx tsc --noEmit && bun test && bunx pkgroll",
 		"test": "bun test",

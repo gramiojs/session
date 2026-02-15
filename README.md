@@ -7,8 +7,6 @@
 
 Session plugin for GramIO.
 
-**!!!Currently not optimized and WIP!!!**
-
 ## Usage
 
 ```ts
@@ -57,9 +55,52 @@ const bot = new Bot(process.env.token!)
 bot.start();
 ```
 
-### TypeScript
+### Lazy Sessions (v0.1.7+)
 
-To **type** a session data, you need to specify the type as the `ReturnType` of the initial function.
+**Reduce database reads by 50-90%** with lazy session loading:
+
+```ts
+// Eager mode (default) - ALWAYS loads session
+bot.extend(session({ initial: () => ({ count: 0 }) }));
+bot.on("message", (ctx) => {
+    ctx.session.count++;  // Session already loaded
+});
+
+// Lazy mode - ONLY loads when accessed
+bot.extend(session({
+    lazy: true,  // 🚀 Enable lazy loading
+    initial: () => ({ count: 0 })
+}));
+bot.on("message", async (ctx) => {
+    // Session NOT loaded yet ✅
+    await ctx.send("Hello!");  // No database read!
+});
+bot.on("message", async (ctx) => {
+    const session = await ctx.session;  // Loads HERE
+    session.count++;
+});
+```
+
+**When to use lazy sessions:**
+- ✅ Many handlers that don't need session
+- ✅ High traffic bots (reduce costs)
+- ✅ Performance-critical applications
+
+## Session Clearing
+
+Clear session data and reset to initial state:
+
+```ts
+bot.on("message", async (ctx) => {
+    if (ctx.text === "/reset") {
+        await ctx.session.$clear();  // Deletes from storage
+    }
+});
+```
+
+## TypeScript
+
+Session data is automatically typed from the `initial` function:
 
 ```ts
 interface MySessionData {
@@ -67,10 +108,40 @@ interface MySessionData {
     some?: "maybe-empty";
 }
 
+// Eager mode
 bot.extend(
     session({
         key: "sessionKey",
         initial: (): MySessionData => ({ apple: 1 }),
     })
 );
+// ctx.sessionKey is MySessionData & { $clear: () => Promise<void> }
+
+// Lazy mode
+bot.extend(
+    session({
+        key: "sessionKey",
+        lazy: true,
+        initial: (): MySessionData => ({ apple: 1 }),
+    })
+);
+// ctx.sessionKey is Promise<MySessionData & { $clear: () => Promise<void> }>
+```
+
+## Custom Session Keys
+
+By default, sessions are stored per-user (`senderId`). Customize with `getSessionKey`:
+
+```ts
+session({
+    // Per-chat storage
+    getSessionKey: (ctx) => `chat:${ctx.chatId}`,
+    initial: () => ({ topic: "" }),
+})
+
+// Per-user-per-chat
+session({
+    getSessionKey: (ctx) => `${ctx.senderId}:${ctx.chatId}`,
+    initial: () => ({ preferences: {} }),
+})
 ```

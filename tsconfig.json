@@ -3,6 +3,7 @@
     "lib": ["ESNext"],
     "target": "ES2022",
     "module": "NodeNext",
+    "noEmit": true,
     "moduleDetection": "force",
 
     /* Bundler mode */
