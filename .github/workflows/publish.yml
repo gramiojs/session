@@ -32,11 +32,11 @@ jobs:
             - name: Type-check
               run: tsc --noEmit
 
-            - name: Setup Deno
-              uses: denoland/setup-deno@v1
+            # - name: Setup Deno
+            #   uses: denoland/setup-deno@v1
 
-            - name: Publish package to JSR
-              run: deno publish --allow-dirty
+            # - name: Publish package to JSR
+            #   run: deno publish --allow-dirty
 
             - name: Install Node
               uses: actions/setup-node@v4
