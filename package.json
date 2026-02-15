@@ -21,7 +21,9 @@
 	"homepage": "https://github.com/gramiojs/session",
 	"readme": "https://gramio.dev/",
 	"scripts": {
-		"prepublishOnly": "bunx pkgroll"
+		"prepublishOnly": "bunx tsc --noEmit && bun test && bunx pkgroll",
+		"test": "bun test",
+		"typecheck": "bunx tsc --noEmit"
 	},
 	"keywords": [
 		"gramio",
@@ -33,6 +35,7 @@
 		"in-memory"
 	],
 	"devDependencies": {
+		"@gramio/test": "^0.0.2",
 		"@types/bun": "^1.1.14",
 		"gramio": "^0.4.14",
 		"pkgroll": "2.25.2",

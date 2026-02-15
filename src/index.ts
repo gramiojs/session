@@ -90,15 +90,24 @@ export interface SessionOptions<
 	initial?: (context: ContextType<BotLike, Events>) => MaybePromise<Data>;
 }
 
+// WeakMap to cache proxies and prevent duplication
+const proxyCache = new WeakMap();
+const targetCache = new WeakMap();
+
 function createProxy<T>(
 	// biome-ignore lint/suspicious/noExplicitAny: <explanation>
 	value: any,
 	onUpdate: () => unknown,
 	sessionKey: string,
 ): T {
-	if (typeof value !== "object") return value;
+	if (typeof value !== "object" || value === null) return value;
 
-	return new Proxy(value, {
+	// Return cached proxy if it exists
+	if (proxyCache.has(value)) {
+		return proxyCache.get(value);
+	}
+
+	const proxy = new Proxy(value, {
 		get(target, key) {
 			const value = target[key];
 
@@ -113,7 +122,20 @@ function createProxy<T>(
 
 			return true;
 		},
+		deleteProperty(target, key) {
+			delete target[key];
+
+			onUpdate();
+
+			return true;
+		},
 	});
+
+	// Cache the proxy to prevent duplication
+	proxyCache.set(value, proxy);
+	targetCache.set(proxy, value);
+
+	return proxy;
 }
 
 /**
@@ -144,7 +166,11 @@ export function session<Data = unknown, Key extends string = "session">(
 	// biome-ignore lint/complexity/noBannedTypes: Temporally fix https://jsr.io/@gramio/session/0.1.2/src/index.ts#L109 slow-types-compiler issue
 	{},
 	DeriveDefinitions & {
-		[K in Events]: Awaited<{ [key in Key extends string ? Key : "session"]: Data }>
+		[K in Events]: Awaited<{
+			[key in Key extends string ? Key : "session"]: Data & {
+				$clear: () => Promise<void>;
+			}
+		}>
 	}
 > {
 	const key = (options.key ?? "session") as Key extends string
@@ -189,11 +215,13 @@ export function session<Data = unknown, Key extends string = "session">(
 		],
 		async (context) => {
 			const obj = {} as {
-				[key in typeof key]: Data;
+				[key in typeof key]: Data & {
+					$clear: () => Promise<void>;
+				};
 			};
 
 			// TODO: WE SHOULD ADD * TO GRAMIO/TYPES usage
-			// @ts-ignore 
+			// @ts-ignore
 			const sessionKey = await getSessionKey(context);
 
 			const sessionData =
@@ -201,15 +229,90 @@ export function session<Data = unknown, Key extends string = "session">(
 				// @ts-ignore
 				(options.initial && (await options.initial(context))) ??
 				{};
-			const onUpdate: () => unknown = () => storage.set(sessionKey, session);
 
-			let session = createProxy(sessionData, onUpdate, sessionKey);
+			let session: any;
+
+			const onUpdate: () => unknown = () => {
+				const target = targetCache.get(session) ?? session;
+				// Create a clean copy without the $clear method
+				const dataToStore: any = {};
+				for (const key in target) {
+					if (key !== "$clear") {
+						dataToStore[key] = target[key];
+					}
+				}
+				storage.set(sessionKey, dataToStore);
+			};
+
+			session = createProxy(sessionData, onUpdate, sessionKey);
+
+			// Add $clear method to session if not already present
+			if (!("$clear" in session)) {
+				Object.defineProperty(session, "$clear", {
+					enumerable: false,
+					configurable: true,
+					writable: false,
+					value: async () => {
+						await storage.delete(sessionKey);
+						// Reset session to initial state without triggering onUpdate
+						const newData =
+							// @ts-ignore
+							(options.initial && (await options.initial(context))) ?? {};
+
+						// Get the underlying target from the proxy
+						const target = targetCache.get(session) ?? session;
+
+						// Clear all properties from the target
+						for (const key in target) {
+							delete (target as any)[key];
+						}
+
+						// Copy new data to target (bypassing proxy)
+						for (const key in newData) {
+							(target as any)[key] = (newData as any)[key];
+						}
+					},
+				});
+			}
 
 			Object.defineProperty(obj, key, {
 				enumerable: true,
 				get: () => session,
 				set(value) {
-					session = createProxy(value, onUpdate, sessionKey);
+					// Get the target from the value being set
+					const newTarget = targetCache.get(value) ?? value;
+					session = createProxy(newTarget, onUpdate, sessionKey);
+
+					// Trigger update with the new value
+					onUpdate();
+
+					// Re-add $clear method if not already present
+					if (!("$clear" in session)) {
+						Object.defineProperty(session, "$clear", {
+							enumerable: false,
+							configurable: true,
+							writable: false,
+							value: async () => {
+								await storage.delete(sessionKey);
+								const newData =
+									// @ts-ignore
+									(options.initial && (await options.initial(context))) ?? {};
+
+								// Get the underlying target from the proxy
+								const target = targetCache.get(session) ?? session;
+
+								// Clear all properties from the target
+								for (const key in target) {
+									delete (target as any)[key];
+								}
+
+								// Copy new data to target (bypassing proxy)
+								for (const key in newData) {
+									(target as any)[key] = (newData as any)[key];
+								}
+							},
+						});
+					}
 				},
 			});
 
