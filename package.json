@@ -34,15 +34,15 @@
 	],
 	"devDependencies": {
 		"@types/bun": "^1.1.14",
-		"gramio": "^0.1.5",
-		"pkgroll": "2.5.1",
+		"gramio": "^0.4.14",
+		"pkgroll": "2.25.2",
 		"typescript": "^5.7.2"
 	},
 	"peerDependencies": {
-		"gramio": ">=0.0.39 <1.0.0"
+		"gramio": ">=0.4.14"
 	},
 	"dependencies": {
-		"@gramio/storage": "^1.0.0"
+		"@gramio/storage": "^2.0.1"
 	},
 	"files": ["dist"],
 	"license": "MIT"
