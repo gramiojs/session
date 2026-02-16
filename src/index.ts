@@ -84,5 +84,10 @@ export function session<
 		);
 	}
 
-	return createEagerSessionPlugin(key, storage, getSessionKey, options.initial);
+	return createEagerSessionPlugin(
+		key,
+		storage,
+		getSessionKey,
+		options.initial,
+	);
 }

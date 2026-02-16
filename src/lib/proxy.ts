@@ -5,16 +5,16 @@ const proxyCache = new WeakMap();
 const targetCache = new WeakMap();
 
 /**
- * Creates a reactive proxy that automatically calls onUpdate when properties change
+ * Creates a reactive proxy that marks session as dirty when properties change
  * @param value - The object to proxy
- * @param onUpdate - Callback to trigger when data changes
+ * @param markDirty - Callback to mark session as modified
  * @param sessionKey - Session identifier for debugging
- * @returns Proxied object with reactive updates
+ * @returns Proxied object with change tracking
  */
 export function createProxy<T>(
 	// biome-ignore lint/suspicious/noExplicitAny: Required for generic proxy
 	value: any,
-	onUpdate: () => unknown,
+	markDirty: () => void,
 	sessionKey: string,
 ): T {
 	if (typeof value !== "object" || value === null) return value;
@@ -29,17 +29,17 @@ export function createProxy<T>(
 			const val = target[key];
 
 			return isPlainObject(val) || Array.isArray(val)
-				? createProxy(val, onUpdate, sessionKey)
+				? createProxy(val, markDirty, sessionKey)
 				: val;
 		},
 		set(target, key, newValue) {
 			target[key] = newValue;
-			onUpdate();
+			markDirty();
 			return true;
 		},
 		deleteProperty(target, key) {
 			delete target[key];
-			onUpdate();
+			markDirty();
 			return true;
 		},
 	});

@@ -4,13 +4,25 @@ import { createProxy, getTarget } from "./proxy.js";
 import type { Events } from "./types.js";
 
 /**
- * Creates a session object with $clear method and reactive updates
+ * Session manager result with session data and save function
+ */
+export interface SessionManager<Data> {
+	/** The proxied session data */
+	session: Data & { $clear: () => Promise<void> };
+	/** Save function to persist changes to storage */
+	save: () => Promise<void>;
+	/** Check if session has unsaved changes */
+	isDirty: () => boolean;
+}
+
+/**
+ * Creates a session object with $clear method and dirty tracking
  * @param sessionData - Initial session data
  * @param sessionKey - Storage key for this session
  * @param storage - Storage backend
  * @param context - Bot context
  * @param getInitialData - Function to get initial data when clearing
- * @returns Proxied session with $clear method
+ * @returns Session manager with save function and dirty flag
  */
 export function createSessionWithClear<Data>(
 	sessionData: Data,
@@ -20,11 +32,19 @@ export function createSessionWithClear<Data>(
 	getInitialData?: (
 		context: ContextType<BotLike, Events>,
 	) => MaybePromise<Data>,
-) {
+): SessionManager<Data> {
 	let session: any;
+	let dirty = false;
 
-	// Update handler - saves to storage
-	const onUpdate: () => unknown = () => {
+	// Mark session as modified
+	const markDirty = () => {
+		dirty = true;
+	};
+
+	// Save session to storage
+	const save = async () => {
+		if (!dirty) return;
+
 		const target = getTarget(session);
 		// Create a clean copy without the $clear method
 		const dataToStore: any = {};
@@ -33,11 +53,12 @@ export function createSessionWithClear<Data>(
 				dataToStore[key] = target[key];
 			}
 		}
-		storage.set(sessionKey, dataToStore);
+		await storage.set(sessionKey, dataToStore);
+		dirty = false;
 	};
 
-	// Create reactive proxy
-	session = createProxy(sessionData, onUpdate, sessionKey);
+	// Create reactive proxy with dirty tracking
+	session = createProxy(sessionData, markDirty, sessionKey);
 
 	// Add $clear method if not already present
 	if (!("$clear" in session)) {
@@ -47,7 +68,9 @@ export function createSessionWithClear<Data>(
 			writable: false,
 			value: async () => {
 				await storage.delete(sessionKey);
-				// Reset session to initial state without triggering onUpdate
+				dirty = false; // Clear is an explicit action, reset dirty flag
+
+				// Reset session to initial state
 				const newData = (getInitialData && (await getInitialData(context))) ?? {};
 
 				// Get the underlying target from the proxy
@@ -58,7 +81,7 @@ export function createSessionWithClear<Data>(
 					delete (target as any)[key];
 				}
 
-				// Copy new data to target (bypassing proxy)
+				// Copy new data to target (bypassing proxy to avoid marking dirty)
 				for (const key in newData) {
 					(target as any)[key] = (newData as any)[key];
 				}
@@ -66,7 +89,11 @@ export function createSessionWithClear<Data>(
 		});
 	}
 
-	return session;
+	return {
+		session,
+		save,
+		isDirty: () => dirty,
+	};
 }
 
 /**

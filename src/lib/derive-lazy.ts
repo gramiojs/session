@@ -1,7 +1,11 @@
 import type { Storage } from "@gramio/storage";
 import type { ContextType, BotLike, MaybePromise } from "gramio";
 import { Plugin } from "gramio";
-import { createSessionWithClear, loadSessionData } from "./session-manager.js";
+import {
+	createSessionWithClear,
+	loadSessionData,
+	type SessionManager,
+} from "./session-manager.js";
 import type { Events } from "./types.js";
 
 /**
@@ -47,11 +51,17 @@ export function createLazySessionPlugin<Data, Key extends string>(
 		"chat_shared",
 	];
 
-	return new Plugin("@gramio/session").derive(events, (context) => {
+	const plugin = new Plugin("@gramio/session");
+
+	// Store session managers per context
+	const sessionManagers = new WeakMap<any, SessionManager<Data>>();
+
+	// Derive session data with lazy loading
+	plugin.derive(events, (context) => {
 		const obj = {} as any;
 
 		let loaded = false;
-		let cachedSession: any = null;
+		let manager: SessionManager<Data> | null = null;
 		let sessionKeyPromise: Promise<string> | null = null;
 
 		Object.defineProperty(obj, key, {
@@ -74,20 +84,37 @@ export function createLazySessionPlugin<Data, Key extends string>(
 							getInitialData,
 						);
 
-						cachedSession = createSessionWithClear(
+						manager = createSessionWithClear(
 							sessionData,
 							sessionKey,
 							storage,
 							context,
 							getInitialData,
 						);
+
+						// Store manager
+						sessionManagers.set(context, manager);
+
 						loaded = true;
 					}
-					return cachedSession;
+					return manager!.session;
 				})();
 			},
 		});
 
 		return obj;
-	}) as any;
+	});
+
+	// Save session after all handlers complete
+	// Only saves if session was actually loaded (lazy optimization)
+	plugin.on(events, async (context, next) => {
+		await next(); // Execute all handlers first
+
+		const manager = sessionManagers.get(context);
+		if (manager?.isDirty()) {
+			await manager.save();
+		}
+	});
+
+	return plugin as any;
 }

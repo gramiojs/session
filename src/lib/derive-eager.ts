@@ -1,7 +1,11 @@
 import type { Storage } from "@gramio/storage";
 import type { ContextType, BotLike, MaybePromise } from "gramio";
 import { Plugin } from "gramio";
-import { createSessionWithClear, loadSessionData } from "./session-manager.js";
+import {
+	createSessionWithClear,
+	loadSessionData,
+	type SessionManager,
+} from "./session-manager.js";
 import { getTarget } from "./proxy.js";
 import type { Events } from "./types.js";
 
@@ -48,7 +52,13 @@ export function createEagerSessionPlugin<Data, Key extends string>(
 		"chat_shared",
 	];
 
-	return new Plugin("@gramio/session").derive(events, async (context) => {
+	const plugin = new Plugin("@gramio/session");
+
+	// Store session managers per context
+	const sessionManagers = new WeakMap<any, SessionManager<Data>>();
+
+	// Derive session data
+	plugin.derive(events, async (context) => {
 		const obj = {} as any;
 
 		// @ts-ignore - TODO: WE SHOULD ADD * TO GRAMIO/TYPES usage
@@ -61,7 +71,7 @@ export function createEagerSessionPlugin<Data, Key extends string>(
 			getInitialData,
 		);
 
-		let session = createSessionWithClear(
+		let manager = createSessionWithClear(
 			sessionData,
 			sessionKey,
 			storage,
@@ -69,13 +79,16 @@ export function createEagerSessionPlugin<Data, Key extends string>(
 			getInitialData,
 		);
 
+		// Store manager
+		sessionManagers.set(context, manager);
+
 		Object.defineProperty(obj, key, {
 			enumerable: true,
-			get: () => session,
+			get: () => manager.session,
 			set(value) {
 				// Get the target from the value being set
 				const newTarget = getTarget(value);
-				session = createSessionWithClear(
+				manager = createSessionWithClear(
 					newTarget,
 					sessionKey,
 					storage,
@@ -83,18 +96,27 @@ export function createEagerSessionPlugin<Data, Key extends string>(
 					getInitialData,
 				);
 
-				// Trigger update with the new value
-				const target = getTarget(session);
-				const dataToStore: any = {};
-				for (const k in target) {
-					if (k !== "$clear") {
-						dataToStore[k] = target[k];
-					}
-				}
-				storage.set(sessionKey, dataToStore);
+				// Update stored manager
+				sessionManagers.set(context, manager);
+
+				// Immediately save when replacing session
+				manager.save();
 			},
 		});
 
 		return obj;
-	}) as any;
+	});
+
+	// Save session after all handlers complete
+	// This runs after user handlers finish, reducing storage calls from N to 1 per update
+	plugin.on(events, async (context, next) => {
+		await next(); // Execute all handlers first
+
+		const manager = sessionManagers.get(context);
+		if (manager?.isDirty()) {
+			await manager.save();
+		}
+	});
+
+	return plugin as any;
 }

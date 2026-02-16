@@ -526,6 +526,77 @@ describe("@gramio/session", () => {
 
 			await user.sendMessage("test");
 		});
+
+		it("should prevent proxy stacking for arrays (GitHub issue)", async () => {
+			let setCallCount = 0;
+			const storage = inMemoryStorage();
+			const originalSet = storage.set.bind(storage);
+			storage.set = async (key: string, value: any) => {
+				setCallCount++;
+				return originalSet(key, value);
+			};
+
+			const bot = new Bot("test").extend(
+				session({
+					storage,
+					initial: () => ({ items: ["a", "b", "c"] }),
+				}),
+			);
+
+			// Track if we're getting the SAME proxy or new ones
+			const seenProxies = new Set();
+
+			bot.on("message", (ctx) => {
+				// Access array multiple times (simulating the issue)
+				for (let i = 0; i < 100; i++) {
+					const arr = ctx.session.items;  // Should NOT create new proxy each time
+					seenProxies.add(arr);  // Track unique proxy instances
+					arr.push(`item${i}`);
+				}
+			});
+
+			const env = new TelegramTestEnvironment(bot);
+			const user = env.createUser({ id: 123 });
+
+			setCallCount = 0;
+			await user.sendMessage("test");
+
+			// Main assertion: We should only see ONE unique proxy instance
+			// (not 100 different proxies which would indicate stacking)
+			expect(seenProxies.size).toBe(1);
+
+			// NEW behavior: Session saves ONCE after all handlers complete
+			// Not 200 times (100 pushes × 2 updates each), but exactly 1 time!
+			// This is achieved via middleware hook that saves after await next()
+			expect(setCallCount).toBe(1);
+
+			console.log(`Unique proxies: ${seenProxies.size} (should be 1)`);
+			console.log(`Set calls: ${setCallCount} (should be 1 with middleware save)`);
+		});
+
+		it("should reuse array proxies across accesses", async () => {
+			const bot = new Bot("test").extend(
+				session({
+					initial: () => ({ items: [1, 2, 3] }),
+				}),
+			);
+
+			bot.on("message", (ctx) => {
+				// Multiple reads of the same array
+				const arr1 = ctx.session.items;
+				const arr2 = ctx.session.items;
+				const arr3 = ctx.session.items;
+
+				// All should be the SAME proxy instance
+				expect(arr1 === arr2).toBe(true);
+				expect(arr2 === arr3).toBe(true);
+			});
+
+			const env = new TelegramTestEnvironment(bot);
+			const user = env.createUser();
+
+			await user.sendMessage("test");
+		});
 	});
 
 	describe("Edge cases", () => {
@@ -615,6 +686,7 @@ describe("@gramio/session", () => {
 			sessionData = await storage.get("123");
 			expect(sessionData.counter).toBe(101);
 		});
+
 	});
 
 	describe("Different event types", () => {
